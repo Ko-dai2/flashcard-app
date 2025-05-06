@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>フラッシュカード学習アプリ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1 id="deck-name">デッキ名</h1>
+  <div id="card-area">
+    <div id="prompt"></div>
+    <input id="answer" autocomplete="off">
+    <button id="check-btn">チェック</button>
+    <div id="feedback"></div>
+  </div>
+  <div id="progress">0 / 0</div>
+  <!-- CSV パース用ライブラリ -->
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
