@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>フラッシュカードアプリ</title>
+  <title>フラッシュ＆テストモード学習アプリ</title>
   <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
   <header>
-    <h1>フラッシュカード学習</h1>
+    <h1>学習アプリ</h1>
     <div class="controls">
-      <label for="deck-select">デッキ選択：</label>
+      <!-- デッキ選択 -->
+      <label for="deck-select">デッキ：</label>
       <select id="deck-select">
         <optgroup label="英単語">
           <option value="En_vocab_st1-1.csv">Stage 1</option>
@@ -22,20 +23,49 @@
           <option value="irregular.csv">不規則動詞</option>
         </optgroup>
       </select>
-      <button id="load-deck">読み込む</button>
+      <button id="load-deck">デッキ読み込み</button>
+      <!-- モード切替 -->
+      <label for="mode-select">モード：</label>
+      <select id="mode-select">
+        <option value="flashcard">フラッシュカード</option>
+        <option value="test">テスト</option>
+      </select>
     </div>
   </header>
+
   <main>
-    <div id="card-area">
-      <div id="prompt"></div>
-      <input id="answer" autocomplete="off" placeholder="回答を入力">
-      <button id="check-btn">チェック</button>
-      <div id="feedback"></div>
-    </div>
-    <div id="progress">0 / 0</div>
+    <!-- フラッシュカードモード -->
+    <section id="flashcard-mode" class="mode">
+      <div id="fc-prompt"></div>
+      <div id="fc-subprompt"></div>
+      <div id="fc-progress"></div>
+      <div class="hint">（画面のどこをタップしてもめくれます）</div>
+    </section>
+
+    <!-- テストモード -->
+    <section id="test-mode" class="mode" hidden>
+      <div class="test-controls">
+        <label><input type="radio" name="test-type" value="jp2en" checked> 和→英入力</label>
+        <label><input type="radio" name="test-type" value="en2mc"> 英→四択</label>
+      </div>
+      <button id="test-start">開始</button>
+
+      <div id="test-area" hidden>
+        <div id="test-prompt"></div>
+        <div id="test-input-area">
+          <input id="test-input" autocomplete="off" placeholder="ここに入力">
+          <button id="test-check">チェック</button>
+        </div>
+        <div id="test-options"></div>
+        <div id="test-feedback"></div>
+        <div id="test-progress"></div>
+      </div>
+    </section>
   </main>
-  <!-- CSVパース用ライブラリ -->
+
+  <!-- CSVライブラリ -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- アプリ本体 -->
   <script src="main.js"></script>
 </body>
 </html>

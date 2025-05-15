@@ -1,105 +1,187 @@
-// ——— PWA：Service Worker 登録 ———
+// — PWA Service Worker 登録（前提 sw.js がある場合）
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js');
 }
 
-// ——— 状態管理 ———
-let currentDeck = [];
-let cardIndex = 0, fieldIndex = 0;
-let correctCount = 0, totalCount = 0;
-const fieldOrder = ['word','meaning'];  // 不規則動詞は別処理
-
-// ——— UI 要素 ———
+// — DOM 要素取得
 const deckSelect = document.getElementById('deck-select');
-const loadBtn = document.getElementById('load-deck');
-const promptEl = document.getElementById('prompt');
-const answerInput = document.getElementById('answer');
-const checkBtn = document.getElementById('check-btn');
-const feedbackEl = document.getElementById('feedback');
-const progressEl = document.getElementById('progress');
+const loadDeckBtn = document.getElementById('load-deck');
+const modeSelect = document.getElementById('mode-select');
 
-// ——— デッキ読み込み関数 ———
-function loadDeck(filename) {
-  fetch(`decks/${filename}`)
-    .then(res => res.text())
-    .then(csv => {
-      const parsed = Papa.parse(csv, { header: true }).data;
-      currentDeck = parsed.sort(() => Math.random()-0.5);
-      resetState();
-      saveState();
-      updatePrompt();
-      updateProgress();
-    });
-}
+const flashcardSection = document.getElementById('flashcard-mode');
+const fcPrompt = document.getElementById('fc-prompt');
+const fcSubprompt = document.getElementById('fc-subprompt');
+const fcProgress = document.getElementById('fc-progress');
 
-// ——— プロンプト更新 ———
-function updatePrompt() {
-  const card = currentDeck[cardIndex];
-  const field = currentDeck[card].base ? ['base','past','participle','meaning'][fieldIndex] : fieldOrder[fieldIndex];
-  const label = field==='meaning'? '意味' : field==='word'? '単語' : field;
-  promptEl.textContent = `${card[fieldOrder?field:'base']} の ${label} は？`;
-}
+const testSection = document.getElementById('test-mode');
+const testStartBtn = document.getElementById('test-start');
+const testArea = document.getElementById('test-area');
+const testPrompt = document.getElementById('test-prompt');
+const testInputArea = document.getElementById('test-input-area');
+const testInput = document.getElementById('test-input');
+const testCheckBtn = document.getElementById('test-check');
+const testOptions = document.getElementById('test-options');
+const testFeedback = document.getElementById('test-feedback');
+const testProgress = document.getElementById('test-progress');
+const testTypeRadios = document.getElementsByName('test-type');
 
-// ——— 進捗表示 ———
-function updateProgress() {
-  progressEl.textContent = `${correctCount} / ${totalCount}`;
-}
+// — 状態管理
+let currentDeck = [];
+let deckName = '';
+// フラッシュカード用
+let fcIndex = 0, fcStage = 0; // stage:0=英語,1=日本語
+// テストモード用
+let testMode = 'jp2en', testIndex = 0, correctCount = 0;
+let wrongList = [];
 
-// ——— フィードバック ———
-function showFeedback(ok, correct='') {
-  feedbackEl.textContent = ok? '○ 正解！' : `× 正解は「${correct}」`;
-}
-
-// ——— チェック処理 ———
-checkBtn.addEventListener('click', () => {
-  const card = currentDeck[cardIndex];
-  const keys = Object.keys(card);
-  const field = keys[fieldIndex];
-  const ans = answerInput.value.trim();
-  totalCount++;
-  if (ans === card[field]) {
-    correctCount++;
-    showFeedback(true);
-    fieldIndex++;
-    if (fieldIndex >= keys.length) {
-      cardIndex++;
-      fieldIndex = 0;
-    }
+// — モード切替処理
+modeSelect.addEventListener('change', () => {
+  if (modeSelect.value === 'flashcard') {
+    flashcardSection.hidden = false;
+    testSection.hidden = true;
   } else {
-    showFeedback(false, card[field]);
+    flashcardSection.hidden = true;
+    testSection.hidden = false;
   }
-  answerInput.value = '';
-  updateProgress();
-  saveState();
-  if (cardIndex < currentDeck.length) updatePrompt();
-  else promptEl.textContent = 'お疲れさま！全問完了しました。';
 });
 
-// ——— State 初期化／保存／読み込み ———
-function resetState() {
-  cardIndex=0; fieldIndex=0; correctCount=0; totalCount=0;
+// — デッキ読み込み
+loadDeckBtn.addEventListener('click', () => {
+  const file = deckSelect.value;
+  deckName = file;
+  fetch(`decks/${file}`)
+    .then(r => r.text())
+    .then(csv => {
+      currentDeck = Papa.parse(csv, { header: true }).data
+        .sort(() => Math.random() - 0.5);
+      resetFlashcardState();
+      renderFlashcard();
+    });
+});
+
+// — Flashcard: ステート初期化
+function resetFlashcardState() {
+  fcIndex = 0;
+  fcStage = 0;
 }
-function saveState() {
-  localStorage.setItem('fcState', JSON.stringify({
-    deck: deckSelect.value,
-    cardIndex, fieldIndex, correctCount, totalCount
-  }));
+
+// — Flashcard: 表示更新
+function renderFlashcard() {
+  if (fcIndex >= currentDeck.length) {
+    fcPrompt.textContent = 'お疲れさま！全問完了しました。';
+    fcSubprompt.textContent = '';
+    fcProgress.textContent = '';
+    return;
+  }
+  const card = currentDeck[fcIndex];
+  // 英語表示
+  if (fcStage === 0) {
+    fcPrompt.textContent = card.word || card.base;
+    fcSubprompt.textContent = '';
+  } else {
+    // 日本語表示
+    fcPrompt.textContent = card.word || card.base;
+    fcSubprompt.textContent = card.meaning || card.past;
+  }
+  fcProgress.textContent = `${fcIndex+1} / ${currentDeck.length}`;
 }
-function loadState() {
-  const s = JSON.parse(localStorage.getItem('fcState')||'{}');
-  if (s.deck === deckSelect.value) {
-    ({ cardIndex, fieldIndex, correctCount, totalCount } = s);
+
+// — Flashcard: 画面タップでめくる
+flashcardSection.addEventListener('click', () => {
+  if (fcIndex >= currentDeck.length) return;
+  if (fcStage === 0) {
+    fcStage = 1;
+  } else {
+    fcStage = 0;
+    fcIndex++;
+  }
+  renderFlashcard();
+});
+
+// — Test: テストタイプ選択取得
+function getTestMode() {
+  for (const r of testTypeRadios) {
+    if (r.checked) return r.value;
   }
 }
 
-// ——— デッキ読み込みボタン ———
-loadBtn.addEventListener('click', () => {
-  loadDeck(deckSelect.value);
-  loadState();
+// — Test: 開始ボタン
+testStartBtn.addEventListener('click', () => {
+  testMode = getTestMode();
+  testIndex = 0;
+  correctCount = 0;
+  wrongList = [];
+  testArea.hidden = false;
+  renderTestQuestion();
 });
 
-// ——— 初期自動読み込み ———
-window.addEventListener('load', () => {
-  loadDeck(deckSelect.value);
-  loadState();
+// — Test: 問題表示
+function renderTestQuestion() {
+  testFeedback.textContent = '';
+  if (testIndex >= currentDeck.length) {
+    // 結果表示
+    testPrompt.textContent = `終了！ 正答率: ${Math.round(100*correctCount/currentDeck.length)}%`;
+    testInputArea.hidden = true;
+    testOptions.hidden = true;
+    testProgress.textContent = `間違えた: ${wrongList.join(', ')}`;
+    return;
+  }
+  const card = currentDeck[testIndex];
+  testProgress.textContent = `${testIndex+1} / ${currentDeck.length}`;
+  if (testMode === 'jp2en') {
+    testPrompt.textContent = card.meaning || card.past;
+    testInputArea.hidden = false;
+    testOptions.hidden = true;
+  } else {
+    testPrompt.textContent = card.word || card.base;
+    testInputArea.hidden = true;
+    testOptions.hidden = false;
+    // 四択を生成
+    const correct = card.meaning || card.past;
+    const others = currentDeck
+      .map(c => c.meaning || c.past)
+      .filter(m => m !== correct);
+    shuffleArray(others);
+    const choices = [correct, others[0], others[1] || '', others[2] || '']
+      .sort(() => Math.random() - 0.5);
+    testOptions.innerHTML = '';
+    choices.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.textContent = opt;
+      btn.addEventListener('click', () => checkTestAnswer(opt));
+      testOptions.appendChild(btn);
+    });
+  }
+}
+
+// — Test: 入力チェック（和→英）
+testCheckBtn.addEventListener('click', () => {
+  const ans = testInput.value.trim();
+  const correct = currentDeck[testIndex].word || currentDeck[testIndex].base;
+  checkTestAnswer(ans);
 });
+
+// — Test: 回答チェック共通
+function checkTestAnswer(answer) {
+  const card = currentDeck[testIndex];
+  const correct = (testMode === 'jp2en')
+    ? (card.word || card.base)
+    : (card.meaning || card.past);
+  if (answer === correct) {
+    testFeedback.textContent = '○ 正解！';
+    correctCount++;
+  } else {
+    testFeedback.textContent = `× 正解: ${correct}`;
+    wrongList.push(card.word || card.base);
+  }
+  testIndex++;
+  setTimeout(renderTestQuestion, 1000);
+}
+
+// — ユーティリティ: 配列シャッフル
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
