@@ -2,19 +2,39 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>フラッシュカード学習アプリ</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>フラッシュカードアプリ</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <h1 id="deck-name">デッキ名</h1>
-  <div id="card-area">
-    <div id="prompt"></div>
-    <input id="answer" autocomplete="off">
-    <button id="check-btn">チェック</button>
-    <div id="feedback"></div>
-  </div>
-  <div id="progress">0 / 0</div>
-  <!-- CSV パース用ライブラリ -->
+  <header>
+    <h1>フラッシュカード学習</h1>
+    <div class="controls">
+      <label for="deck-select">デッキ選択：</label>
+      <select id="deck-select">
+        <optgroup label="英単語">
+          <option value="En_vocab_st1-1.csv">Stage 1</option>
+          <option value="En_vocab_st1-2.csv">Stage 2</option>
+          <option value="En_vocab_st1-3.csv">Stage 3</option>
+        </optgroup>
+        <optgroup label="その他">
+          <option value="irregular.csv">不規則動詞</option>
+        </optgroup>
+      </select>
+      <button id="load-deck">読み込む</button>
+    </div>
+  </header>
+  <main>
+    <div id="card-area">
+      <div id="prompt"></div>
+      <input id="answer" autocomplete="off" placeholder="回答を入力">
+      <button id="check-btn">チェック</button>
+      <div id="feedback"></div>
+    </div>
+    <div id="progress">0 / 0</div>
+  </main>
+  <!-- CSVパース用ライブラリ -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="main.js"></script>
 </body>

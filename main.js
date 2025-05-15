@@ -1,62 +1,105 @@
+// ——— PWA：Service Worker 登録 ———
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+
+// ——— 状態管理 ———
 let currentDeck = [];
-let cardIndex = 0;
-let fieldOrder = ["past","participle","meaning"];
-let fieldIndex = 0;
-let correctCount = 0;
-let totalCount = 0;
+let cardIndex = 0, fieldIndex = 0;
+let correctCount = 0, totalCount = 0;
+const fieldOrder = ['word','meaning'];  // 不規則動詞は別処理
 
+// ——— UI 要素 ———
+const deckSelect = document.getElementById('deck-select');
+const loadBtn = document.getElementById('load-deck');
+const promptEl = document.getElementById('prompt');
+const answerInput = document.getElementById('answer');
+const checkBtn = document.getElementById('check-btn');
+const feedbackEl = document.getElementById('feedback');
+const progressEl = document.getElementById('progress');
 
-function loadDeckFromCSV(path, callback) {
-  fetch(path)
+// ——— デッキ読み込み関数 ———
+function loadDeck(filename) {
+  fetch(`decks/${filename}`)
     .then(res => res.text())
-    .then(csvText => {
-      const parsed = Papa.parse(csvText, { header: true });
-      callback(parsed.data);
+    .then(csv => {
+      const parsed = Papa.parse(csv, { header: true }).data;
+      currentDeck = parsed.sort(() => Math.random()-0.5);
+      resetState();
+      saveState();
+      updatePrompt();
+      updateProgress();
     });
 }
-// ページ読み込み時に CSV 読み込み
-loadDeckFromCSV('decks/irregular.csv', deck => {
-  currentDeck = deck.sort(() => Math.random() - 0.5);
-  document.getElementById("deck-name").textContent = "不規則動詞";
-  updatePrompt();
-  updateProgress();
-});
 
-
+// ——— プロンプト更新 ———
 function updatePrompt() {
   const card = currentDeck[cardIndex];
-  const field = fieldOrder[fieldIndex];
-  const labels = { past:"過去形", participle:"過去分詞", meaning:"意味" };
-  document.getElementById("prompt").textContent =
-    `${card.base} の ${labels[field]} は？`;
+  const field = currentDeck[card].base ? ['base','past','participle','meaning'][fieldIndex] : fieldOrder[fieldIndex];
+  const label = field==='meaning'? '意味' : field==='word'? '単語' : field;
+  promptEl.textContent = `${card[fieldOrder?field:'base']} の ${label} は？`;
 }
+
+// ——— 進捗表示 ———
 function updateProgress() {
-  document.getElementById("progress").textContent =
-    `${correctCount} / ${totalCount}`;
+  progressEl.textContent = `${correctCount} / ${totalCount}`;
 }
-function showFeedback(isCorrect, correctAns="") {
-  const fb = document.getElementById("feedback");
-  fb.textContent = isCorrect? "○ 正解！": `× 正解は「${correctAns}」`;
+
+// ——— フィードバック ———
+function showFeedback(ok, correct='') {
+  feedbackEl.textContent = ok? '○ 正解！' : `× 正解は「${correct}」`;
 }
-document.getElementById("check-btn").addEventListener("click", () => {
+
+// ——— チェック処理 ———
+checkBtn.addEventListener('click', () => {
   const card = currentDeck[cardIndex];
-  const field = fieldOrder[fieldIndex];
-  const ans = document.getElementById("answer").value.trim();
+  const keys = Object.keys(card);
+  const field = keys[fieldIndex];
+  const ans = answerInput.value.trim();
   totalCount++;
   if (ans === card[field]) {
     correctCount++;
     showFeedback(true);
     fieldIndex++;
-    if (fieldIndex >= fieldOrder.length) {
+    if (fieldIndex >= keys.length) {
       cardIndex++;
       fieldIndex = 0;
     }
   } else {
     showFeedback(false, card[field]);
   }
-  document.getElementById("answer").value = "";
+  answerInput.value = '';
   updateProgress();
+  saveState();
   if (cardIndex < currentDeck.length) updatePrompt();
-  else document.getElementById("card-area").innerHTML =
-    "<h2>お疲れさま！全問完了しました。</h2>";
+  else promptEl.textContent = 'お疲れさま！全問完了しました。';
+});
+
+// ——— State 初期化／保存／読み込み ———
+function resetState() {
+  cardIndex=0; fieldIndex=0; correctCount=0; totalCount=0;
+}
+function saveState() {
+  localStorage.setItem('fcState', JSON.stringify({
+    deck: deckSelect.value,
+    cardIndex, fieldIndex, correctCount, totalCount
+  }));
+}
+function loadState() {
+  const s = JSON.parse(localStorage.getItem('fcState')||'{}');
+  if (s.deck === deckSelect.value) {
+    ({ cardIndex, fieldIndex, correctCount, totalCount } = s);
+  }
+}
+
+// ——— デッキ読み込みボタン ———
+loadBtn.addEventListener('click', () => {
+  loadDeck(deckSelect.value);
+  loadState();
+});
+
+// ——— 初期自動読み込み ———
+window.addEventListener('load', () => {
+  loadDeck(deckSelect.value);
+  loadState();
 });
