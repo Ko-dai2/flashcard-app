@@ -28,6 +28,7 @@ const testTypeRadios = document.getElementsByName('test-type');
 // 状態管理
 let currentDeck = [];
 let fcIndex = 0, fcStage = 0;          // フラッシュカード
+let fcFields = [];                    // フィールド順
 let testMode = 'jp2en', testIndex = 0, correctCount = 0;
 let wrongList = [];
 
@@ -58,6 +59,15 @@ loadDeckBtn.addEventListener('click', () => {
 function resetFlashcardState() {
   fcIndex = 0;
   fcStage = 0;
+  // フィールド配列を決定
+  const first = currentDeck[0] || {};
+  if (first.base !== undefined && first.past !== undefined && first.participle !== undefined) {
+    // 不規則動詞デッキ
+    fcFields = ['base','past','participle','meaning'];
+  } else {
+    // 通常英単語
+    fcFields = ['word','meaning'];
+  }
 }
 
 // フラッシュカード表示更新
@@ -70,12 +80,15 @@ function renderFlashcard() {
     return;
   }
   const card = currentDeck[fcIndex];
-  if (fcStage === 0) {
-    fcPrompt.textContent = card.word || card.base;
-    fcSubprompt.textContent = '';
+  const field = fcFields[fcStage];
+  // 見出し語（原形 or word）を常に先頭表示
+  const title = card.base !== undefined ? card.base : card.word;
+  fcPrompt.textContent = title;
+  // サブの表示: 現在の field が title と同じフィールド名でないか判定
+  if (field !== (card.base !== undefined ? 'base' : 'word')) {
+    fcSubprompt.textContent = card[field] || '';
   } else {
-    fcPrompt.textContent = card.word || card.base;
-    fcSubprompt.textContent = card.meaning || card.past;
+    fcSubprompt.textContent = '';
   }
   fcProgress.textContent = `${fcIndex + 1} / ${currentDeck.length}`;
 }
@@ -83,8 +96,12 @@ function renderFlashcard() {
 // タップでめくり
 flashcardSection.addEventListener('click', () => {
   if (fcIndex >= currentDeck.length) return;
-  fcStage = fcStage === 0 ? 1 : 0;
-  if (fcStage === 0) fcIndex++;
+  fcStage++;
+  if (fcStage >= fcFields.length) {
+    // 全フィールドめくり終えた → 次カード
+    fcStage = 0;
+    fcIndex++;
+  }
   renderFlashcard();
 });
 
@@ -115,13 +132,14 @@ function renderTestQuestion() {
     testInputArea.hidden = false;
     testOptions.hidden = true;
   } else {
-    testPrompt.textContent = card.word || card.base;
+    testPrompt.textContent = card.base !== undefined ? card.base : card.word;
     testInputArea.hidden = true;
     testOptions.hidden = false;
     const correct = card.meaning || card.past;
     const others = currentDeck.map(c => c.meaning || c.past).filter(m => m !== correct);
     shuffleArray(others);
-    const choices = [correct, others[0], others[1] || '', others[2] || ''].sort(() => Math.random() - 0.5);
+    const choices = [correct, others[0], others[1] || '', others[2] || '']
+      .sort(() => Math.random() - 0.5);
     testOptions.innerHTML = '';
     choices.forEach(opt => {
       const btn = document.createElement('button');
@@ -140,13 +158,15 @@ testCheckBtn.addEventListener('click', () => {
 // テスト：共通チェック処理
 function checkTestAnswer(answer) {
   const card = currentDeck[testIndex];
-  const correct = testMode === 'jp2en' ? (card.word || card.base) : (card.meaning || card.past);
+  const correct = testMode === 'jp2en'
+    ? (card.base !== undefined ? card.base : card.word)
+    : (card.meaning || card.past);
   if (answer === correct) {
     testFeedback.textContent = '○ 正解！';
     correctCount++;
   } else {
     testFeedback.textContent = `× 正解: ${correct}`;
-    wrongList.push(card.word || card.base);
+    wrongList.push(card.base !== undefined ? card.base : card.word);
   }
   testIndex++;
   setTimeout(renderTestQuestion, 1000);
