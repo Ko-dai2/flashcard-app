@@ -26,35 +26,34 @@ const testProgress   = document.getElementById('test-progress');
 const testTypeRadios = document.getElementsByName('test-type');
 
 // — 状態管理 —
-let currentDeck = [];
-let fcIndex     = 0;
-let fcStage     = 0;
-let fcFields    = [];  // 今回のデッキのフィールド順
-let testMode    = 'jp2en';
-let testIndex   = 0;
-let correctCnt  = 0;
-let wrongList   = [];
+let currentDeck    = [];
+let isIrregular    = false;     // 不規則動詞フラグ
+let fcIndex        = 0;
+let fcStage        = 0;
+let fcFields       = [];
+let testMode       = 'jp2en';
+let testIndex      = 0;
+let correctCnt     = 0;
+let wrongList      = [];
+
+// 不規則テスト用サブステージ
+let irSubStage     = 0;  // 0=過去形,1=過去分詞,2=四択意味
 
 // — モード切替 —
 modeSelect.addEventListener('change', () => {
-  if (modeSelect.value === 'flashcard') {
-    flashcardSection.hidden = false;
-    testSection.hidden      = true;
-  } else {
-    flashcardSection.hidden = true;
-    testSection.hidden      = false;
-  }
+  flashcardSection.hidden = modeSelect.value !== 'flashcard';
+  testSection.hidden      = modeSelect.value !== 'test';
 });
 
 // — デッキ読み込み —
 loadDeckBtn.addEventListener('click', () => {
   fetch(`decks/${deckSelect.value}`)
-    .then(res => res.text())
+    .then(r => r.text())
     .then(csv => {
-      // CSV → オブジェクト配列
       currentDeck = Papa.parse(csv, { header: true }).data
-        .filter(c => Object.keys(c).length)   // 空行除去
+        .filter(c => Object.keys(c).length)  // 空行除去
         .sort(() => Math.random() - 0.5);
+      isIrregular = deckSelect.value === 'irregular.csv';
       initFlashcard();
       renderFlashcard();
     });
@@ -64,13 +63,11 @@ loadDeckBtn.addEventListener('click', () => {
 function initFlashcard() {
   fcIndex  = 0;
   fcStage  = 0;
-  // 最初のカードを見てフィールド配列を決定
+  // フィールド配列を決定
   const card = currentDeck[0] || {};
-  if (card.base !== undefined && card.past !== undefined && card.participle !== undefined) {
-    // 不規則動詞：4フィールド
+  if (isIrregular) {
     fcFields = ['base','past','participle','meaning'];
   } else {
-    // 通常英単語：2フィールド
     fcFields = ['word','meaning'];
   }
 }
@@ -79,19 +76,28 @@ function initFlashcard() {
 function renderFlashcard() {
   if (!currentDeck.length) return;
   if (fcIndex >= currentDeck.length) {
-    // 全カード完了
     fcPrompt.textContent    = 'お疲れさま！全問完了しました。';
-    fcSubprompt.textContent = '';
+    fcSubprompt.innerHTML   = '';
     fcProgress.textContent  = '';
     return;
   }
   const card  = currentDeck[fcIndex];
   const field = fcFields[fcStage];
-  // 見出し語 (原形 or 単語)
   const title = card.base !== undefined ? card.base : card.word;
   fcPrompt.textContent = title;
-  // 補助語 (2～4番目のフィールド)
-  if (field !== (card.base !== undefined ? 'base' : 'word')) {
+
+  // サブプロンプト：意味ステージならリスト表示
+  if (field === 'meaning' && isIrregular) {
+    // 不規則動詞の意味ステージのみリスト表示
+    fcSubprompt.innerHTML = `
+      <ul style="text-align:left; padding-left:1em;">
+        <li>原形: ${card.base}</li>
+        <li>過去形: ${card.past}</li>
+        <li>過去分詞: ${card.participle}</li>
+        <li>意味: ${card.meaning}</li>
+      </ul>`;
+  } else if (field !== (isIrregular ? 'base' : 'word')) {
+    // 通常のフィールド表示
     fcSubprompt.textContent = card[field] || '';
   } else {
     fcSubprompt.textContent = '';
@@ -99,95 +105,151 @@ function renderFlashcard() {
   fcProgress.textContent = `${fcIndex+1} / ${currentDeck.length}`;
 }
 
-// — 画面タップでめくる —
+// — フラッシュカードタップ —
 flashcardSection.addEventListener('click', () => {
   if (fcIndex >= currentDeck.length) return;
   fcStage++;
   if (fcStage >= fcFields.length) {
-    // 最後のフィールドまで見終えたら次カード
     fcStage = 0;
     fcIndex++;
   }
   renderFlashcard();
 });
 
-// — テストモード：開始 —
+// — テスト開始 —
 testStartBtn.addEventListener('click', () => {
   testMode   = Array.from(testTypeRadios).find(r => r.checked).value;
   testIndex  = 0;
   correctCnt = 0;
   wrongList  = [];
+  irSubStage = 0;
   testArea.hidden = false;
   renderTestQuestion();
 });
 
-// — テストモード：問題表示 —
+// — テスト問題表示 —
 function renderTestQuestion() {
   testFeedback.textContent = '';
   if (testIndex >= currentDeck.length) {
-    // テスト完了
-    const rate = Math.round(100 * correctCnt / currentDeck.length);
+    // 結果表示
+    const rate = Math.round(100*correctCnt/currentDeck.length);
     testPrompt.textContent   = `終了！ 正答率: ${rate}%`;
     testInputArea.hidden     = true;
     testOptions.hidden       = true;
-    testProgress.textContent = `間違えた: ${wrongList.join(', ')}`;
+    testProgress.textContent = `間違え: ${wrongList.join(', ')}`;
     return;
   }
   const card = currentDeck[testIndex];
   testProgress.textContent = `${testIndex+1} / ${currentDeck.length}`;
-  if (testMode === 'jp2en') {
-    // 和→英入力
-    testPrompt.textContent = card.meaning || card.past;
-    testInputArea.hidden   = false;
-    testOptions.hidden     = true;
+
+  if (isIrregular) {
+    // 不規則動詞専用テスト
+    if (irSubStage === 0) {
+      // 過去形入力
+      testPrompt.textContent   = `過去形 of ${card.base} は？`;
+      testInputArea.hidden     = false;
+      testOptions.hidden       = true;
+      testInput.value          = '';
+    } else if (irSubStage === 1) {
+      // 過去分詞入力
+      testPrompt.textContent   = `過去分詞 of ${card.base} は？`;
+      testInputArea.hidden     = false;
+      testOptions.hidden       = true;
+      testInput.value          = '';
+    } else {
+      // 意味四択
+      testPrompt.textContent   = `意味 of ${card.base} は？`;
+      testInputArea.hidden     = true;
+      testOptions.hidden       = false;
+      const correct = card.meaning;
+      const pool    = currentDeck.map(c=>c.meaning).filter(m=>m!==correct);
+      shuffle(pool);
+      const opts = [correct, pool[0], pool[1]||'', pool[2]||'']
+                     .sort(()=>Math.random()-0.5);
+      testOptions.innerHTML = '';
+      opts.forEach(txt=>{
+        const b=document.createElement('button');
+        b.textContent=txt;
+        b.addEventListener('click', ()=>checkIrregular(txt));
+        testOptions.appendChild(b);
+      });
+    }
   } else {
-    // 英→四択
-    testPrompt.textContent = card.base !== undefined ? card.base : card.word;
-    testInputArea.hidden   = true;
-    testOptions.hidden     = false;
-    // 正解とダミー選択肢を作成
-    const correct = card.meaning || card.past;
-    const pool    = currentDeck.map(c => c.meaning || c.past)
-                      .filter(m => m !== correct);
-    shuffle(pool);
-    const opts = [correct, pool[0], pool[1] || '', pool[2] || '']
-                   .sort(() => Math.random() - 0.5);
-    testOptions.innerHTML = '';
-    opts.forEach(text => {
-      const btn = document.createElement('button');
-      btn.textContent = text;
-      btn.addEventListener('click', () => checkAnswer(text));
-      testOptions.appendChild(btn);
-    });
+    // 通常テスト
+    if (testMode==='jp2en') {
+      testPrompt.textContent = card.meaning;
+      testInputArea.hidden   = false;
+      testOptions.hidden     = true;
+      testInput.value        = '';
+    } else {
+      testPrompt.textContent = card.word;
+      testInputArea.hidden   = true;
+      testOptions.hidden     = false;
+      const correct = card.meaning;
+      const pool    = currentDeck.map(c=>c.meaning).filter(m=>m!==correct);
+      shuffle(pool);
+      const opts = [correct, pool[0], pool[1]||'', pool[2]||'']
+                     .sort(()=>Math.random()-0.5);
+      testOptions.innerHTML = '';
+      opts.forEach(txt=>{
+        const b=document.createElement('button');
+        b.textContent=txt;
+        b.addEventListener('click', ()=>checkNormal(txt));
+        testOptions.appendChild(b);
+      });
+    }
   }
 }
 
-// — テストモード：入力チェック —
-testCheckBtn.addEventListener('click', () => {
-  checkAnswer(testInput.value.trim());
+// — 通常テストチェック —
+testCheckBtn.addEventListener('click', ()=>{
+  const ans = testInput.value.trim();
+  checkNormal(ans);
 });
 
-// — テストモード：共通チェック処理 —
-function checkAnswer(ans) {
-  const card = currentDeck[testIndex];
-  const correct = (testMode === 'jp2en')
-    ? (card.base !== undefined ? card.base : card.word)
-    : (card.meaning || card.past);
-  if (ans === correct) {
-    testFeedback.textContent = '○ 正解！';
+// — 通常テスト回答処理 —
+function checkNormal(ans) {
+  const card    = currentDeck[testIndex];
+  const correct = testMode==='jp2en' ? card.word : card.meaning;
+  if (ans===correct) {
+    testFeedback.textContent='○ 正解！';
     correctCnt++;
   } else {
-    testFeedback.textContent = `× 正解: ${correct}`;
-    wrongList.push(card.base !== undefined ? card.base : card.word);
+    testFeedback.textContent=`× 正解: ${correct}`;
+    wrongList.push(card.word);
   }
   testIndex++;
-  setTimeout(renderTestQuestion, 800);
+  setTimeout(renderTestQuestion,800);
+}
+
+// — 不規則テスト回答処理 —
+function checkIrregular(ans) {
+  const card = currentDeck[testIndex];
+  let correct;
+  if (irSubStage===0) correct = card.past;
+  else if(irSubStage===1) correct=card.participle;
+  else                 correct=card.meaning;
+
+  if (ans===correct) {
+    testFeedback.textContent='○ 正解！';
+    if (irSubStage<2) ; // 入力ステージ、カウントしない
+    else correctCnt++;
+  } else {
+    testFeedback.textContent=`× 正解: ${correct}`;
+    wrongList.push(card.base);
+  }
+  irSubStage++;
+  if (irSubStage>2) {
+    irSubStage=0;
+    testIndex++;
+  }
+  setTimeout(renderTestQuestion,800);
 }
 
 // — ユーティリティ：配列シャッフル —
-function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+function shuffle(arr) {
+  for (let i=arr.length-1;i>0;i--) {
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
   }
 }
