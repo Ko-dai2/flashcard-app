@@ -11,18 +11,26 @@
   <header>
     <h1>学習アプリ</h1>
     <div class="controls">
-      <!-- デッキ選択 -->
+      <!-- デッキ選択（手動で10個並べた） -->
       <label for="deck-select">デッキ：</label>
       <select id="deck-select">
-        <optgroup label="英単語">
-          <option value="En_vocab_st1-1.csv">Stage 1</option>
-          <option value="En_vocab_st1-2.csv">Stage 2</option>
-          <option value="En_vocab_st1-3.csv">Stage 3</option>
+        <optgroup label="英単語 Stage 1">
+          <option value="En_vocab_st1-1.csv">En_vocab_st1-1</option>
+          <option value="En_vocab_st1-2.csv">En_vocab_st1-2</option>
+          <option value="En_vocab_st1-3.csv">En_vocab_st1-3</option>
+          <option value="En_vocab_st1-4.csv">En_vocab_st1-4</option>
+          <option value="En_vocab_st1-5.csv">En_vocab_st1-5</option>
+          <option value="En_vocab_st1-6.csv">En_vocab_st1-6</option>
+          <option value="En_vocab_st1-7.csv">En_vocab_st1-7</option>
+          <option value="En_vocab_st1-8.csv">En_vocab_st1-8</option>
+          <option value="En_vocab_st1-9.csv">En_vocab_st1-9</option>
+          <option value="En_vocab_st1-10.csv">En_vocab_st1-10</option>
         </optgroup>
         <optgroup label="その他">
           <option value="irregular.csv">不規則動詞</option>
         </optgroup>
       </select>
+      <!-- デッキ読み込みボタン -->
       <button id="load-deck">デッキ読み込み</button>
       <!-- モード切替 -->
       <label for="mode-select">モード：</label>
@@ -63,7 +71,7 @@
     </section>
   </main>
 
-  <!-- CSVライブラリ -->
+  <!-- CSVパース用ライブラリ -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <!-- アプリ本体 -->
   <script src="main.js"></script>

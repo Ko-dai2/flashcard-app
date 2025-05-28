@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fc-app-v2';  // v1 から v2 へ変更
+const CACHE_NAME = 'fc-app-v1';
 const ASSETS = [
   './',
   './index.html',
@@ -7,17 +7,17 @@ const ASSETS = [
   'https://unpkg.com/papaparse@5.4.1/papaparse.min.js'
 ];
 
-// インストール：キャッシュに必要ファイルを保存
-self.addEventListener('install', e => {
-  e.waitUntil(
+// インストール時にキャッシュを確保
+self.addEventListener('install', evt => {
+  evt.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(ASSETS))
   );
 });
 
-// フェッチ：キャッシュ優先で返す
-self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(res => res || fetch(e.request))
+// リクエスト時はキャッシュ優先
+self.addEventListener('fetch', evt => {
+  evt.respondWith(
+    caches.match(evt.request).then(res => res || fetch(evt.request))
   );
 });

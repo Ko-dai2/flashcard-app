@@ -11,7 +11,7 @@ header { width: 100%; max-width: 480px; margin-bottom: 16px; }
 
 main { width: 100%; max-width: 480px; }
 
-/* 共通モード設定 */
+/* モード共通 */
 .mode { 
   border: 1px solid #888; 
   border-radius: 8px; 
