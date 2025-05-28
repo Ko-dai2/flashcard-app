@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fc-app-v1';
+const CACHE_NAME = 'fc-app-v2';  // v1 から v2 へ変更
 const ASSETS = [
   './',
   './index.html',
